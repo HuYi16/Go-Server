@@ -1,4 +1,4 @@
-package stdef
+package hdef
 
 type SqlRedisinfodes struct {
     Con       interface{} 

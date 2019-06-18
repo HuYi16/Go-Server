@@ -4,6 +4,8 @@ import(
     "common/log/plog"
     "common/redigo/redis"
     "common/stdef/stdef"
+    "database/sql"
+    _ "common/mysql"
 )
 
 var redis_addr_map map[string][]stdef.SqlRedisinfodes
@@ -15,6 +17,19 @@ func init(){
     sql_addr_map = make(map[string][]stdef.SqlRedisinfodes)
 }
 
+func ConRisOrSql(bRedis bool,addr string) interface{},error{
+    var errres error
+    bSuc = false 
+    if addr != ""{
+        if bRedis{
+            c,err = redis.Dial("tcp",addr)
+            errres = err
+        else{
+            db,err = sql.Open()
+        }
+    }
+    return nil,err
+}
 func makestredissqlinfodes(arg []string) []stdef.SqlRedisinfodes{
     valinfo := make([]stdef.SqlRedisinfodes,0)
     if len(arg) == 0{
@@ -32,17 +47,17 @@ func makestredissqlinfodes(arg []string) []stdef.SqlRedisinfodes{
 //bRedis set redis addr or set sql addr
 //readonlyaddr the ip and port arry or slice which just ueed to read data format like 127.0.0.1:6666
 //writeonlyaddr the ip and port arry or slice which only used to write data
-func SetReidsSqlAddr(bRedis bool,readonlyaddr []string,writeonlyaddr []string) bool{
+func SetReidsSqlAddr(bRedis bool,read []string,write []string) bool{
     if len(readonlyaddr) == 0 ||len(writeonlyaddr) == 0{
         plog.Plog("SetReidsSqlAddr param len is 0!!!")
         return false
     }
     if bRedis {
-        redis_addr_map["r"] = makestredissqlinfodes(readonlyaddr)
-        redis_addr_map["w"] = makestredissqlinfodes(writeonlyaddr)
+        redis_addr_map["r"] = makestredissqlinfodes(read)
+        redis_addr_map["w"] = makestredissqlinfodes(write)
     }else{
-        sql_addr_map["r"] = makestredissqlinfodes(readonlyaddr)
-        sql_addr_map["w"] = makestredissqlinfodes(writeonlyaddr)
+        sql_addr_map["r"] = makestredissqlinfodes(read)
+        sql_addr_map["w"] = makestredissqlinfodes(write)
     }
     return true
 }
