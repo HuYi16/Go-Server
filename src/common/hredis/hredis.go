@@ -1,11 +1,19 @@
 package hredis
-
+//redis no need connect pool
 import{
-    "common/log/plog"    
+    "common/hlog/hlog"    
     "common/redigo/redis"
-    "common/hdef/hdef"
 }
 
+type Redis_info_st struct{
+    Con redis.Conn
+    AddrPort string
+}
+
+func (st * Redis_info_st) init(){
+    st.Con = nil
+    AddrPort = ""
+}
 var redis_info_map map[string][]hdef.Redis_info_st
 
 func initmap(){
@@ -34,7 +42,7 @@ func checkifcon(ipport string,bread bool) bool{
     return false
 }
 //connct to redis
-func connect2redis(ipport string) interface{}{
+func connect2redis(ipport string) redis.Conn{
     c,err := redis.Dial("tcp",ipport)
     if err != nil{
         plog.Plog(err)
@@ -90,7 +98,7 @@ func SetRedis(bRead bool,addr []string) bool{
     }
     return true
 }
-//get a useable redis conn
+//get a useable redis conn and you can ues connction to change dbid
 func GetCanUseCon(bRead bool) redis.Conn{
     if len(redis_info_map) != 2{
         return nil

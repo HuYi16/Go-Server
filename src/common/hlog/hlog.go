@@ -1,4 +1,4 @@
-package plog
+package hlog
 import(
     "fmt"
     "time"
