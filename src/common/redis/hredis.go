@@ -40,9 +40,20 @@ func connect2redis(ipport string) interface{}{
         plog.Plog(err)
         return nil
     }
+    _,errdo :=  c.Do("SET","connctcheck","1")
+    if errdo == nil{
+        return nil
+    }
     return c
 }
 
+func checkcon(c redis.Conn) bool{
+    _,err:= c.Do("GET","connctcheck")
+    if err == nil{
+        return true
+    }
+    return false
+}
 //close all redis connct
 func Shutdownredis(){
     for k,v := range redis_info_map{
@@ -79,9 +90,39 @@ func SetRedis(bRead bool,addr []string) bool{
     }
     return true
 }
-//commond like type,key,value..... string arry and moudle will choose read redis or write redis
-//if there has just one type connect ,func will no choose
-//if there has no connect ,func will return nil,false
-func DoRedis(command []string) interface{},bool{
-    return nil,true
+//get a useable redis conn
+func GetCanUseCon(bRead bool) redis.Conn{
+    if len(redis_info_map) != 2{
+        return nil
+    }
+    c:=make(hdef.Redis_info_st)
+    c.Con = nil
+    if bRead{
+        for k,v := range redis_info_map["r"]{
+            c =  v
+            break
+        }
+    }else{
+        for k,v := range redis_info_map["w"]{
+            c = v
+            break
+        }
+    }
+    for k,v := redis_info_map{
+        for kk,vv := range v{
+            c = v
+            break
+        }
+    }
+    if c.Con == nil{
+        return nil
+    }
+    if !checkcon(c.Con) && len(c.AddrPort) != 0{
+        cc,err := redis.Dial("TCP",c.AddrPort)
+        if err != nil{
+            c.Con = cc
+            return cc
+        }
+    }
+    return nil
 }
