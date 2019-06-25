@@ -1,6 +1,7 @@
 package main
 import (
     "fmt"
+    "common/redis/hredis"
 )
 
 func init(){

@@ -1,19 +1,72 @@
 package hredis
 //redis no need connect pool
 import{
+    "fmt"
     "common/hlog/hlog"    
     "common/redigo/redis"
 }
 
 type Redis_info_st struct{
-    Con redis.Conn
-    AddrPort string
+    cCon              redis.Conn
+    szAddr            string
+    szUser            string
+    szPsw             string
+    iPort             int
+    iNowDataBaseId    int
+    bConnect          bool
 }
 
-func (st * Redis_info_st) init(){
-    st.Con = nil
-    AddrPort = ""
+func (st * Redis_info_st) CloseRedis(){
+    if nil != st.cCon
+        st.cCon.Close()
+        st.bConnct = false
+        st.cCon = nil
 }
+
+func (st * Redis_info_st) Zerost(){
+    st.CloseRedis()
+    st.cCon = nil
+    szAddrPort = ""
+    st.iNowDataBaseId = 0
+    st.iPort = 0
+    st.szUser = ""
+    st.szPsw = ""
+    bConnect = false
+}
+
+func (st * redis_info_st) SetRedisInfo(szAddr string,iPort int,szUser string,szPsw string){
+    st.szAddr = szAddr
+    st.szUser = szUser
+    st.szPsw = szPsw
+    st.iPort = iPort
+}
+
+
+func (st * Redis_info_st) Conn2Redis() bool{
+    if bConnect{
+        return true
+    }
+    if 0 == st.iPort || "" == st.szAddr{
+        return false
+    }
+    s := fmt.Sprintf("%s:%d",st.szAddr,st.iPort)
+    c,err := redis.Dial("tcp",s)
+    if err != nil{
+        plog.Plog(err)
+        return false
+    }
+    if st.szUser != "" &&  st.szPsw != ""{
+    err = c.Send(st.szUser,st.szPsw)
+        if nil != c{
+            st.C;pseRedis(c)
+            return false
+       }
+    }
+    st.cCon = c
+    st.bConnct = true;
+    return true
+}
+/*
 var redis_info_map map[string][]hdef.Redis_info_st
 
 func initmap(){
@@ -24,7 +77,7 @@ func initmap(){
 
 func init(){
     initmap()
-    plog.Plog("start redis moudle!!")
+    hlog.Hlog("start redis moudle!!")
 }
 
 func checkifcon(ipport string,bread bool) bool{
@@ -74,7 +127,7 @@ func Shutdownredis(){
 //set redis addr and connect to redis
 func SetRedis(bRead bool,addr []string) bool{
     if len(addr) == 0 {
-        plog.Plog("Set Redis addr is empty!!")
+        hlog.Hlog("Set Redis addr is empty!!")
         return false
     }
     conarry :=make([]hdef.Redis_info_st,0)
@@ -134,3 +187,4 @@ func GetCanUseCon(bRead bool) redis.Conn{
     }
     return nil
 }
+*/
