@@ -2,7 +2,7 @@ package hredis
 //redis no need connect pool
 import(
     "fmt"
-    "common/hlog/hlog"    
+    "log"    
     "github.com/garyburd/redigo/redis"
 )
 
@@ -25,31 +25,30 @@ func (st * Redis_info_st) SetDataBaseId(id int) int{
 func (st * Redis_info_st) CloseRedis(){
     if nil != st.Con{
         st.Con.Close()
-        st.bConnct = false
-        st.cCon = nil
+        st.bConnect = false
+        st.Con = nil
 
     }
 }
 func (st * Redis_info_st) Zerost(){
     st.CloseRedis()
     st.Con = nil
-    szAddrPort = ""
+    st.szAddr = ""
     st.iNowDataBaseId = 0
     st.iPort = 0
-    st.szUser = ""
     st.szPsw = ""
-    bConnect = false
+    st.bConnect = false
 }
 
-func (st * redis_info_st) SetRedisInfo(szAddr string,iPort int,szPsw string){
+func (st * Redis_info_st) SetRedisInfo(szAddr string,iPort int,szPsw string){
     st.szAddr = szAddr
     st.szPsw = szPsw
     st.iPort = iPort
 }
 
 
-func (st * Redis_info_st) Conn2Redis() bool{
-    if bConnect{
+func (st * Redis_info_st) Connect() bool{
+    if st.bConnect{
         return true
     }
     if 0 == st.iPort || "" == st.szAddr{
@@ -58,18 +57,18 @@ func (st * Redis_info_st) Conn2Redis() bool{
     s := fmt.Sprintf("%s:%d",st.szAddr,st.iPort)
     c,err := redis.Dial("tcp",s)
     if err != nil{
-        plog.Plog(err)
+        log.Print("redis dail error",err)
         return false
     }
-    if st.szUser != "" &&  st.szPsw != ""{
+    if st.szPsw != ""{
     err = c.Send("auth",st.szPsw)
         if nil != c{
-            st.CloseRedis(c)
+            st.CloseRedis()
             return false
        }
     }
     st.Con = c
-    st.bConnct = true;
+    st.bConnect = true;
     return true
 }
 /*

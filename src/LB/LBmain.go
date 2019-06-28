@@ -1,21 +1,21 @@
 package main
 import (
-    log "common/hlog/hlog"
-    "common/redis/hredis"
+    "log"
+    R "common/hredis"
 )
 
-var redis_handle Redis_info_st
+var R_handle R.Redis_info_st
 func init(){
-    fmt.Println("LB server init!!")
+    log.Print("LB server init!!")
 }
 
 func main(){
-    redis_handle.Zerost()
-    redis_handle.SetRedisInfo("127.0.0.1",6379,"")
-    if redis_handle.Con2Redis(){
-        res :=redis_handle.Con.Do("set","test","1")
-        log.Hlog(res)
-        redis_handle.CloseRedis()
+    R_handle.Zerost()
+    R_handle.SetRedisInfo("127.0.0.1",6379,"")
+    if R_handle.Connect(){
+        res,err :=R_handle.Con.Do("set","test","1")
+        log.Print(res,err)
+        R_handle.CloseRedis()
     }
-    log.Hlog("this is LB server!")
+    log.Print("this is LB server!")
 }
