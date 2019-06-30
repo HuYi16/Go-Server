@@ -2,7 +2,7 @@ package hredis
 //redis no need connect pool
 import(
     "fmt"
-    "log"    
+    L"common/hlog"
     "github.com/garyburd/redigo/redis"
 )
 
@@ -17,6 +17,7 @@ type Redis_info_st struct{
 
 func (st * Redis_info_st) SetDataBaseId(id int) int{
     if st.Con == nil{
+        L.W("redis con is nil",L.Level_Error)
         return 1
     }
 
@@ -57,9 +58,10 @@ func (st * Redis_info_st) Connect() bool{
     s := fmt.Sprintf("%s:%d",st.szAddr,st.iPort)
     c,err := redis.Dial("tcp",s)
     if err != nil{
-        log.Print("redis dail error",err)
+        L.W("redis dail error",L.Level_Error)
         return false
     }
+   // L.WF("./redis.txt","dail ok",L.Level_Normal)
     if st.szPsw != ""{
     err = c.Send("auth",st.szPsw)
         if nil != c{
