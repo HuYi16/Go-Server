@@ -1,7 +1,7 @@
 package hsocket
 
 import(
-   L "/common/hlog"
+   L "common/hlog"
    "net"
    "sync"
    "time"
@@ -25,7 +25,7 @@ type MSGHead struct{
 
 type stConnInfo struct{
     szHost  string    //the host of the server
-    iPort   string   //the port of the host
+    iPort   int   //the port of the host
     bServerType bool      //true is server type false is client type
     con   net.Conn     //the connect handle
     cbD   cbDiscon      //disconnect callback function
@@ -40,18 +40,18 @@ type stBaseInfo struct{
 
 var BaseInfo stBaseInfo  //the base info for package
 var mConInfo map[int]stConnInfo //the online info map
-var m syncc.Mutex      //the lock for online info
+var m sync.Mutex      //the lock for online info
 var bStop bool
 
 func init(){
    L.W("inti socket package",L.Level_Normal)
    r := rand.New(rand.NewSource(time.Now().UnixNano()))
-   BaseInfo.iNowMaxID = r.Int31()%100000
+   BaseInfo.iNowMaxID = r.Int32()%100000
    if BaseInfo.iNowMaxID <= 10000 || BaseInfo.iNowMaxID >= 90000{
        BaseInfo.iNowMaxID = 76534
    }
    BaseInfo.iInitID = BaseInfo.iNowMaxID
-   BaseInfo.iMaxConnect = 65535
+   BaseInfo.iMaxConnectNumber = 65535
    mConInfo = make(map[int]stConnInfo,3000) //init 3000 size
    bStop = false
 }
@@ -68,16 +68,17 @@ func SetMaxConnct(iMaxNum int)bool{
     if iMaxNum <= 0{
         return false
     }
-    BaseInfo.iMaxConnect = iMaxNum
+    BaseInfo.iMaxConnectNumber = iMaxNum
     return true
 }
 //get a socket if for call  function
 func getNewID() int{
-    for k,_ := range mCanUseID{
-        delete(mCanUseID,k)
+    for k,_ := range BaseInfo.mCanUseID{
+        delete(BaseInfo.mCanUseID,k)
         return k
     }
-    if ++BaseInfo.iNowMaxID <= BaseInfo.iInitID + BaseInfo.iMaxConnect{
+    if BaseInfo.iNowMaxID  < BaseInfo.iInitID + BaseInfo.iMaxConnectNumber{
+        BaseInfo.iNowMaxID++
         return BaseInfo.iNowMaxID
     }
     L.W("socket max ID used!!!",L.Level_Error)
@@ -92,7 +93,7 @@ func closeCon(iId int){
         v.cbD(iId)
         v.con.Close()
         delete(mConInfo,iId)
-        mCanUseID[iId] = 0
+        BaseInfo.mCanUseID[iId] = 0
     }
 }
 //update the online info
@@ -151,10 +152,10 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
         copy(buf,buf[iStartIndex:iNowBuf])
         iNowBuf -= iStartIndex
         iStartIndex = 0
+    }
 }
-
 // function tcp start clent mode
-func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string){
+func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
     if iPort <= 0 || iPort >= 65535{
         return -1,false,"port is invalued!"
     }
@@ -200,7 +201,7 @@ func handleAccp(cbR cbRead,cbD cbDiscon,l net.Listener,iPort int){
             L.W("get socketid fail",L.Level_Normal)
             return 
         }
-         if !updateConInfo(iId,iPort,conn."find to find",conn,cbD,true,true){
+         if !updateConInfo(iId,iPort,"find to find",conn,cbD,true,true){
             conn.Close()
             L.W("insert into map socket fail!!",L.Level_Normal)
             return 
@@ -210,7 +211,7 @@ func handleAccp(cbR cbRead,cbD cbDiscon,l net.Listener,iPort int){
     return 
 }
 //start net server mode
-func DailS(iPort int,cbR cbRead,cbD cbDiscon)bool,string{
+func DailS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
     if iPort <= 0 {
         return false,"server port is invalued!!"
     }
