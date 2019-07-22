@@ -11,6 +11,12 @@ import(
    "io"
 )
 
+type FakeSlice struct{
+    addr uintptr
+    len int
+    cap int
+}
+
 const(
     iMaxBufSize = 8096
 )
@@ -22,6 +28,8 @@ type cbDiscon func(iId int)
 
 type MSGHead struct{
     lens int //msg body lenth
+    //ServerId int //to or from ServerId
+    //bHeartBeat bool 
 }
 
 type stConnInfo struct{
@@ -102,7 +110,7 @@ func updateConInfo(iId int,iPort int,szHost string,conn net.Conn,cbD cbDiscon,bS
     if bAdd{
          m.Lock()
          defer m.Unlock()
-         v,ok := mConInfo[iId]
+         _,ok := mConInfo[iId]
          if !ok{
              arg := stConnInfo{ szHost, iPort, bServer,conn,cbD}
              mConInfo[iId] = arg
@@ -121,7 +129,8 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
         return 
     }
     var stHead MSGHead
-    iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(stHead)))
+    iHeadSize := int(unsafe.Sizeof(stHead))
+   // iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(stHead)))
     buf := make([]byte,iMaxBufSize)
     bufHead := make([]byte,iHeadSize)
     var iReadByte int
@@ -141,7 +150,8 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
         iNowBuf += iReadByte
          for iNowBuf-iStartIndex > iHeadSize{//judge if head is complete!
              copy(bufHead,buf[iStartIndex:iStartIndex+iHeadSize])
-             stHead = MSGHead(bufHead)
+             //stHead = MSGHead(bufHead)
+             stHead = *(*(**MSGHead)(unsafe.Pointer(&bufHead))) 
             if iHeadSize + stHead.lens <= iNowBuf{//get head body complete
                 //copy body data to a new buf
                 iStartIndex += iHeadSize
@@ -231,7 +241,8 @@ func DailS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
 }
 func Write(iId int,buf []byte,lens int)bool{
     head :=MSGHead{lens}
-    iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(head)))
+    iHeadSize := int(unsafe.Sizeof(head))
+    //iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(head)))
     if lens > iMaxBufSize - iHeadSize{
         return false
     }
@@ -239,9 +250,12 @@ func Write(iId int,buf []byte,lens int)bool{
     if !ok{
         return false
     }
-    bufSend := make([]byte,lens + iHeadSize)
-    copy(bufSend,[]byte(head))
-    copy(bufSend[unsafe.Sizeof(head):],buf)
+    tempHead :=&FakeSlice{uintptr(unsafe.Pointer(&head)),iHeadSize,iHeadSize}
+    bufSend := *(*[]byte)(unsafe.Pointer(tempHead))
+    bufSend = append(bufSend,buf...)
+   // bufSend := make([]byte,lens + iHeadSize)
+   // copy(bufSend,[]byte(head))
+    //copy(bufSend[unsafe.Sizeof(head):],buf)
     n,err := v.con.Write(bufSend)
     if err != nil{
         L.W(fmt.Sprintf("send fail,err:%s",err),L.Level_Error)

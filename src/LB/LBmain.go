@@ -19,6 +19,10 @@ func cbDis(iId int){
 }
 
 func main(){
+   // buf :=[]byte("                              ")
+   // buf2 := []byte("this is copy test!!")
+   // copy(buf[4:],buf2[2:5])
+    fmt.Println(buf)
     L.W("this is test",L.Level_Trace)
     R_handle.Zerost()
     R_handle.SetRedisInfo("127.0.0.1",6379,"")
