@@ -8,6 +8,7 @@ import(
    "math/rand"
    "unsafe"
    "fmt"
+   "io"
 )
 
 const(
@@ -46,7 +47,7 @@ var bStop bool
 func init(){
    L.W("inti socket package",L.Level_Normal)
    r := rand.New(rand.NewSource(time.Now().UnixNano()))
-   BaseInfo.iNowMaxID = r.Int32()%100000
+   BaseInfo.iNowMaxID = r.Int()%100000
    if BaseInfo.iNowMaxID <= 10000 || BaseInfo.iNowMaxID >= 90000{
        BaseInfo.iNowMaxID = 76534
    }
@@ -120,8 +121,9 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
         return 
     }
     var stHead MSGHead
-    iHeadSize := unsafe.Sizeof(stHead)
+    iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(stHead)))
     buf := make([]byte,iMaxBufSize)
+    bufHead := make([]byte,iHeadSize)
     var iReadByte int
     var err error
     iNowBuf := 0
@@ -138,7 +140,8 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
         }
         iNowBuf += iReadByte
          for iNowBuf-iStartIndex > iHeadSize{//judge if head is complete!
-            stHead = MSGHead(buf[0:iHeadSize])
+             copy(bufHead,buf[iStartIndex:iStartIndex+iHeadSize])
+             stHead = MSGHead(bufHead)
             if iHeadSize + stHead.lens <= iNowBuf{//get head body complete
                 //copy body data to a new buf
                 iStartIndex += iHeadSize
@@ -165,10 +168,10 @@ func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
     if nil == cbR || nil == cbD{
         return -1,false,"callback function is invalued!!"
     }
-    conn,err := net.Dail("tcp",fmt.Sprintf("%s:%d",szHost,iPort))
+    conn,err := net.Dial("tcp",fmt.Sprintf("%s:%d",szHost,iPort))
     if nil == err{
         L.W(fmt.Sprintf("connect to %s:%d fail,err:",szHost,iPort,err),L.Level_Error)
-        return -1,false,err
+        return -1,false,fmt.Sprintf("%s",err)
     }
     iId := getNewID()
     if iId == -1{
@@ -227,15 +230,16 @@ func DailS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
     return true,""
 }
 func Write(iId int,buf []byte,lens int)bool{
-    if lens > iMaxBufSize - unsafe.Sizeof(MSGHead){
+    head :=MSGHead{lens}
+    iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(head)))
+    if lens > iMaxBufSize - iHeadSize{
         return false
     }
     v,ok := mConInfo[iId]
     if !ok{
         return false
     }
-    head :=MSGHead{lens}
-    bufSend := make([]byte,lens + unsafe.Sizeof(head)+1)
+    bufSend := make([]byte,lens + iHeadSize)
     copy(bufSend,[]byte(head))
     copy(bufSend[unsafe.Sizeof(head):],buf)
     n,err := v.con.Write(bufSend)
