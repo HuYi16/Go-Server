@@ -2,30 +2,12 @@ package db
 
 import (
 	"time"
-
+    L"common/hlog"
 	"github.com/garyburd/redigo/redis"
-	"github.com/gfandada/gserver/logger"
 )
 
-/******
-type Pool struct {
-    // 用来创建redis连接的方法
-    Dial func() (Conn, error)
-    // 如果设置了给func,那么每次p.Get()的时候都会调用该方法来验证连接的可用性
-    TestOnBorrow func(c Conn, t time.Time) error
-    // 定义连接池中最大连接数（超过这个数会关闭老的链接，总会保持这个数）
-    MaxIdle int
-    // 当前连接池中可用的链接数
-    MaxActive int
-    // 定义链接的超时时间，每次p.Get()的时候会检测这个连接是否超时（超时会关闭，并释放可用连接数）
-    IdleTimeout time.Duration
-    // 当可用连接数为0是，那么当wait=true,那么当调用p.Get()时，会阻塞等待，否则，返回nil.
-    Wait bool
-}
-******/
-
 const (
-	IMAGEKEY = "GSERVERKEY"
+	IMAGEKEY = "checkdial"
 )
 
 const (
@@ -33,8 +15,8 @@ const (
 )
 
 type Cache struct {
-	pool *redis.Pool // 连接池
-	key  string      // 用于记录redis中所有的key
+	pool *redis.Pool // conn pool 
+	key  string      //save all redis key
 	conn redis.Conn
 }
 
@@ -60,7 +42,7 @@ type Ret struct {
 type checkback func() (int, error)
 type execback func()
 
-// 新建redis-pool
+// redis-pool
 func NewRedis(redisCfg Redis) *Cache {
 	cache := &Cache{
 		key: IMAGEKEY,

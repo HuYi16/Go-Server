@@ -66,7 +66,7 @@ func SetLogName(path string)bool{
 // check the arg ok
 func check(file string,arg string) bool{
     if file == "" || arg == ""{
-        fmt.Print("log warning file or content is null")
+        fmt.Print("log warning file or content is null\n")
         return false
     }
     return true

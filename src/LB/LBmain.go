@@ -4,6 +4,7 @@ import (
     L "common/hlog"
     S "common/hsocket"
     "fmt"
+    "time"
 )
 
 var R_handle R.Redis_info_st
@@ -19,10 +20,6 @@ func cbDis(iId int){
 }
 
 func main(){
-   // buf :=[]byte("                              ")
-   // buf2 := []byte("this is copy test!!")
-   // copy(buf[4:],buf2[2:5])
-    fmt.Println(buf)
     L.W("this is test",L.Level_Trace)
     R_handle.Zerost()
     R_handle.SetRedisInfo("127.0.0.1",6379,"")
@@ -31,12 +28,12 @@ func main(){
         L.W(fmt.Sprintf("%s,%s",res,err),L.Level_Normal)
         R_handle.CloseRedis()
     }
-    ok,err := S.DailS(3564,cbRead,cbDis)
+    ok,err := S.DialS(3564,cbRead,cbDis)
     if ok{
         L.W("start server suc!!",L.Level_Trace)
     }else{
         L.W(err,L.Level_Error)
     }
-
+    time.Sleep(100*time.Second)
     L.W("LB server quit!!!",L.Level_Error)
 }

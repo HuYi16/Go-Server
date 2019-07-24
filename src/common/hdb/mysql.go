@@ -1,11 +1,9 @@
-package db
+package db_sql
 
 import (
+    L"common/hlog"
 	"database/sql"
 	"fmt"
-
-	Loader "github.com/gfandada/gserver/loader"
-	"github.com/gfandada/gserver/logger"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -13,7 +11,6 @@ var (
 	_mysql *sql.DB
 )
 
-// 配置
 type Mysql struct {
 	User         string
 	Password     string
@@ -25,43 +22,42 @@ type Mysql struct {
 
 type CallBack func() error
 
-func NewMysql(path string) {
-	cfg := new(Mysql)
-	Loader.LoadJson(path, cfg)
+//start sql connect 
+func NewMysql(arg Mysql) {
 	var err error
 	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8",
-		cfg.User, cfg.Password, cfg.Host, cfg.Db)
+		arg.User, arg.Password, arg.Host, arg.Db)
 	_mysql, err = sql.Open("mysql", dataSourceName)
 	if err != nil {
-		logger.Error("mysql {%s} start error {%v}", dataSourceName, err)
+        L.W(fmt.Sprintf("open sql:%s err:%s", dataSourceName, err),L.Level_Error)
 		return
 	}
 	err = _mysql.Ping()
 	if err != nil {
-		logger.Error("mysql {%s} ping error {%v}", dataSourceName, err)
+        L.W(fmt.Sprintf("mysql:%s ping err:%s", dataSourceName, err),L.Level_Error)
 		return
 	}
 	_mysql.SetMaxIdleConns(cfg.MaxIdleConns)
 	_mysql.SetMaxOpenConns(cfg.MaxOpenConns)
-	logger.Info("mysql start {%s}", dataSourceName)
+    L.W(fmt.Sprintf("sql run:%s", dataSourceName),L.Level_Normal)
 	return
 }
 
+//close sql
 func CloseMysql() {
 	if _mysql == nil {
 		return
 	}
 	_mysql.Close()
-	logger.Info("mysql close")
+	L.W("mysql close",L.Level_Normal)
 }
 
-// 获取一个mysql实例
+
 func GetMysql() *sql.DB {
 	return _mysql
 }
 
-/****************************非事务操作********************************/
-
+//sql execute fun
 func execute(sqlStr string, args ...interface{}) (sql.Result, error) {
 	return GetMysql().Exec(sqlStr, args...)
 }
@@ -95,7 +91,7 @@ func Query(queryStr string, args ...interface{}) (map[int]map[string]string, err
 	return results, nil
 }
 
-// 更新
+//sql update
 func Update(updateStr string, args ...interface{}) (int64, error) {
 	result, err := execute(updateStr, args...)
 	if err != nil {
@@ -105,7 +101,7 @@ func Update(updateStr string, args ...interface{}) (int64, error) {
 	return affect, err
 }
 
-// 插入
+// sql insert 
 func Insert(insertStr string, args ...interface{}) (int64, error) {
 	result, err := execute(insertStr, args...)
 	if err != nil {
@@ -116,7 +112,7 @@ func Insert(insertStr string, args ...interface{}) (int64, error) {
 
 }
 
-// 删除
+// sql delete
 func Delete(deleteStr string, args ...interface{}) (int64, error) {
 	result, err := execute(deleteStr, args...)
 	if err != nil {
@@ -126,7 +122,6 @@ func Delete(deleteStr string, args ...interface{}) (int64, error) {
 	return affect, err
 }
 
-/****************************事务操作********************************/
 
 type MysqlTransaction struct {
 	SQLTX *sql.Tx
@@ -136,7 +131,7 @@ func (t *MysqlTransaction) execute(sqlStr string, args ...interface{}) (sql.Resu
 	return t.SQLTX.Exec(sqlStr, args...)
 }
 
-// 开启事务
+
 func Begin() (*MysqlTransaction, error) {
 	var trans = &MysqlTransaction{}
 	var err error
@@ -146,17 +141,14 @@ func Begin() (*MysqlTransaction, error) {
 	return trans, err
 }
 
-// 终止事务
 func (t *MysqlTransaction) Rollback() error {
 	return t.SQLTX.Rollback()
 }
 
-// 提交事务
 func (t *MysqlTransaction) Commit() error {
 	return t.SQLTX.Commit()
 }
 
-// 查询
 func (t *MysqlTransaction) Query(queryStr string, args ...interface{}) (map[int]map[string]string, error) {
 	query, err := t.SQLTX.Query(queryStr, args...)
 	results := make(map[int]map[string]string)
@@ -186,7 +178,6 @@ func (t *MysqlTransaction) Query(queryStr string, args ...interface{}) (map[int]
 	return results, nil
 }
 
-// 更新
 func (t *MysqlTransaction) Update(updateStr string, args ...interface{}) (int64, error) {
 	result, err := t.execute(updateStr, args...)
 	if err != nil {
@@ -196,7 +187,6 @@ func (t *MysqlTransaction) Update(updateStr string, args ...interface{}) (int64,
 	return affect, err
 }
 
-// 插入
 func (t *MysqlTransaction) Insert(insertStr string, args ...interface{}) (int64, error) {
 	result, err := t.execute(insertStr, args...)
 	if err != nil {
@@ -207,7 +197,6 @@ func (t *MysqlTransaction) Insert(insertStr string, args ...interface{}) (int64,
 
 }
 
-// 删除
 func (t *MysqlTransaction) Delete(deleteStr string, args ...interface{}) (int64, error) {
 	result, err := t.execute(deleteStr, args...)
 	if err != nil {

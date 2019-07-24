@@ -19,6 +19,8 @@ type FakeSlice struct{
 
 const(
     iMaxBufSize = 8096
+    IDEADTIME = 50*time.Millisecond   //defual deadtime
+    IHEARTTIMEOUT = 10  //heartbeat 10 seconds
 )
 //the function read callback
 type cbRead func(iId int,buf []byte,iSize int) bool 
@@ -29,7 +31,7 @@ type cbDiscon func(iId int)
 type MSGHead struct{
     lens int //msg body lenth
     //ServerId int //to or from ServerId
-    //bHeartBeat bool 
+    bHeartBeat bool 
 }
 
 type stConnInfo struct{
@@ -53,7 +55,7 @@ var m sync.Mutex      //the lock for online info
 var bStop bool
 
 func init(){
-   L.W("inti socket package",L.Level_Normal)
+   L.W("init socket package",L.Level_Normal)
    r := rand.New(rand.NewSource(time.Now().UnixNano()))
    BaseInfo.iNowMaxID = r.Int()%100000
    if BaseInfo.iNowMaxID <= 10000 || BaseInfo.iNowMaxID >= 90000{
@@ -62,6 +64,7 @@ func init(){
    BaseInfo.iInitID = BaseInfo.iNowMaxID
    BaseInfo.iMaxConnectNumber = 65535
    mConInfo = make(map[int]stConnInfo,3000) //init 3000 size
+   BaseInfo.mCanUseID = make(map[int]int,1000) //init 1000 size
    bStop = false
 }
 
@@ -107,6 +110,9 @@ func closeCon(iId int){
 }
 //update the online info
 func updateConInfo(iId int,iPort int,szHost string,conn net.Conn,cbD cbDiscon,bServer,bAdd bool) bool{
+    if nil == conn || nil == cbD || iId < 0 || iPort < 0{
+        return false
+    }
     if bAdd{
          m.Lock()
          defer m.Unlock()
@@ -123,11 +129,12 @@ func updateConInfo(iId int,iPort int,szHost string,conn net.Conn,cbD cbDiscon,bS
     return true
 }
 //socket start read 
-func conRead(cbR cbRead,iId int,conn net.Conn){
+func conRead(cbR cbRead,iId int,conn net.Conn,bServer bool){
     defer  closeCon(iId)
     if nil == cbR || iId <= 0{
         return 
     }
+    //set INIFTtime 50ms
     var stHead MSGHead
     iHeadSize := int(unsafe.Sizeof(stHead))
    // iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(stHead)))
@@ -136,39 +143,74 @@ func conRead(cbR cbRead,iId int,conn net.Conn){
     var iReadByte int
     var err error
     iNowBuf := 0
-    iStartIndex := 0 
-    for GetStop(){
+    iStartIndex := 0
+    llNowTime := time.Now().Unix() + IHEARTTIMEOUT
+    L.W("start read loop....",L.Level_Trace)
+    for !GetStop(){
+        conn.SetReadDeadline(time.Now().Add(time.Duration(5000*time.Millisecond))
+        //check heart beat or send heart beat
+        if bServer{
+            if llNowTime < time.Now().Unix() + IHEARTTIMEOUT + 2{
+                return 
+            }
+        }else {
+            if llNowTime -1 <=time.Now().Unix(){
+                if !doHeartBeat(conn){
+                    return 
+                }else{
+                    llNowTime = time.Now().Unix() + IHEARTTIMEOUT
+                }
+            }
+        }
+        L.W("start read....",L.Level_Trace)
         iReadByte = 0
         err = nil
         iReadByte,err = conn.Read(buf[iNowBuf:])
+        L.W(fmt.Sprintf("read number %d,iNowBuf[%d],iHeadSize[%d]",iReadByte,iNowBuf,iHeadSize),L.Level_Trace)
         if err != nil{
+            L.W(fmt.Sprintf("[%d]read err,[%s] ",iId,err),L.Level_Trace)
+          /*  if Timeout(){
+                continue  //read time out 
+            }
+            */
             if err != io.EOF{
                 L.W(fmt.Sprintf("[%d]read err,[%s] ",iId,err),L.Level_Error)
+                return 
             }
-            return 
+            continue
         }
         iNowBuf += iReadByte
          for iNowBuf-iStartIndex > iHeadSize{//judge if head is complete!
              copy(bufHead,buf[iStartIndex:iStartIndex+iHeadSize])
              //stHead = MSGHead(bufHead)
-             stHead = *(*(**MSGHead)(unsafe.Pointer(&bufHead))) 
-            if iHeadSize + stHead.lens <= iNowBuf{//get head body complete
+             stHead = *(*(**MSGHead)(unsafe.Pointer(&bufHead)))
+             if stHead.bHeartBeat{
+                    //do heartbeat back
+                    if !doHeartBeat(conn){
+                        return 
+                    }else{
+                        llNowTime = time.Now().Unix() + IHEARTTIMEOUT  //update next heart dead time
+                    }
+                }else{
+                if iHeadSize + stHead.lens <= iNowBuf{//get head body complete
                 //copy body data to a new buf
-                iStartIndex += iHeadSize
-                body  := buf[iStartIndex:iStartIndex + stHead.lens]
-                if !cbR(iId,body,stHead.lens){
-                    return
+                    iStartIndex += iHeadSize
+                    body  := buf[iStartIndex:iStartIndex + stHead.lens]
+                    if !cbR(iId,body,stHead.lens){
+                        return
+                    }
+                    iStartIndex += stHead.lens
                 }
-                iStartIndex += stHead.lens
-            }   
-        }
+            }
+    }
         copy(buf,buf[iStartIndex:iNowBuf])
         iNowBuf -= iStartIndex
         iStartIndex = 0
     }
 }
-// function tcp start clent mode
-func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
+// function tcp start clent mode 
+//need auto reconnect?
+func DialC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
     if iPort <= 0 || iPort >= 65535{
         return -1,false,"port is invalued!"
     }
@@ -179,7 +221,7 @@ func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
         return -1,false,"callback function is invalued!!"
     }
     conn,err := net.Dial("tcp",fmt.Sprintf("%s:%d",szHost,iPort))
-    if nil == err{
+    if nil != err{
         L.W(fmt.Sprintf("connect to %s:%d fail,err:",szHost,iPort,err),L.Level_Error)
         return -1,false,fmt.Sprintf("%s",err)
     }
@@ -192,19 +234,22 @@ func DailC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
         conn.Close()
         return -1,false,"socket id exsist!!"
     }
-    go conRead(cbR,iId,conn)
-    return iId,true,""
+    go conRead(cbR,iId,conn,false)
+    return iId,true,"start client suc!!"
 }
 
 // handle the clent Accept
 func handleAccp(cbR cbRead,cbD cbDiscon,l net.Listener,iPort int){
     if nil == cbR ||nil ==  cbD || iPort <= 0{
+        L.W("call back fun is nil!! server accept start fail!!",L.Level_Error)
         return
     }
     var conn net.Conn
     var err error
-    for GetStop(){
+    L.W("start Accept",L.Level_Trace)
+    for !GetStop(){
         conn,err = l.Accept()
+        L.W("some one connct!!",L.Level_Trace)
         if nil != err{
             L.W(fmt.Sprintf("accept fail:%s",err),L.Level_Error)
         }
@@ -214,17 +259,17 @@ func handleAccp(cbR cbRead,cbD cbDiscon,l net.Listener,iPort int){
             L.W("get socketid fail",L.Level_Normal)
             return 
         }
-         if !updateConInfo(iId,iPort,"find to find",conn,cbD,true,true){
+         if !updateConInfo(iId,iPort,conn.RemoteAddr().String(),conn,cbD,true,true){
             conn.Close()
             L.W("insert into map socket fail!!",L.Level_Normal)
             return 
         }
-        go conRead(cbR,iId,conn)
+        go conRead(cbR,iId,conn,true)
     }
     return 
 }
 //start net server mode
-func DailS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
+func DialS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
     if iPort <= 0 {
         return false,"server port is invalued!!"
     }
@@ -239,8 +284,28 @@ func DailS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
     go handleAccp(cbR,cbD,l,iPort)
     return true,""
 }
+
+func doHeartBeat(con net.Conn)bool{
+    head := MSGHead{lens:0,
+                    bHeartBeat:false}
+    iHeadSize := int(unsafe.Sizeof(head))
+    tempHead :=&FakeSlice{uintptr(unsafe.Pointer(&head)),iHeadSize,iHeadSize}
+    bufSend := *(*[]byte)(unsafe.Pointer(tempHead))
+    n,err := con.Write(bufSend)
+    if err != nil{
+        L.W(fmt.Sprintf("send fail,err:%s",err),L.Level_Error)
+        return false
+    }
+    if n != len(bufSend){
+        L.W("send data number is wrong!!",L.Level_Error)
+        return false
+    }
+    return true
+ }
+
 func Write(iId int,buf []byte,lens int)bool{
-    head :=MSGHead{lens}
+    head :=MSGHead{lens:lens,
+                    bHeartBeat:false}
     iHeadSize := int(unsafe.Sizeof(head))
     //iHeadSize := *(*int)(unsafe.Pointer(unsafe.Sizeof(head)))
     if lens > iMaxBufSize - iHeadSize{
