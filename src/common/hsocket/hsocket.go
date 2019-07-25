@@ -252,6 +252,7 @@ func DialC(iPort int,szHost string,cbR cbRead,cbD cbDiscon)(int,bool,string) {
 
 // handle the clent Accept
 func handleAccp(cbR cbRead,cbD cbDiscon,l net.Listener,iPort int){
+    defer l.Close()
     if nil == cbR ||nil ==  cbD || iPort <= 0{
         L.W("call back fun is nil!! server accept start fail!!",L.Level_Error)
         return
@@ -298,7 +299,7 @@ func DialS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
 }
 
 func doHeartBeat(con net.Conn)bool{
-    head := MSGHead{lens:100,
+    head := MSGHead{lens:0,
                     bHeartBeat:true}
     iHeadSize := int(unsafe.Sizeof(head))
     tempHead :=&FakeSlice{uintptr(unsafe.Pointer(&head)),iHeadSize,iHeadSize}
