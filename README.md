@@ -1,4 +1,6 @@
 # Go-Server
-基于GO语言的服务器框架  整体架构：负载均衡服务器--》网关服武器--》数据中转服务器 --》功能服务器
-2019.05.31 搭建好环境，准备开始，每周至少提交一次
+aims to a common frame
+start at 2019-07-22
+make base one by one 
+
 
