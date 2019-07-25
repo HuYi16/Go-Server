@@ -13,6 +13,9 @@ func init(){
 }
 
 func cbRead(iId int,buf []byte,iSize int)bool{
+    szSend := fmt.Sprintf("sever send data :[%d]",time.Now().UnixNano())
+    L.W(fmt.Sprintf("recv:%s,send[%s]",string(buf),szSend),L.Level_Trace)
+    S.Write(iId,[]byte(szSend),len([]byte(szSend)))
     return true
 }
 func cbDis(iId int){
@@ -34,6 +37,6 @@ func main(){
     }else{
         L.W(err,L.Level_Error)
     }
-    time.Sleep(100*time.Second)
+    time.Sleep(50*time.Second)
     L.W("LB server quit!!!",L.Level_Error)
 }

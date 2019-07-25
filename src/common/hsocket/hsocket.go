@@ -9,6 +9,7 @@ import(
    "unsafe"
    "fmt"
    "io"
+   "strings"
 )
 
 type FakeSlice struct{
@@ -19,7 +20,7 @@ type FakeSlice struct{
 
 const(
     iMaxBufSize = 8096
-    IDEADTIME = 50*time.Millisecond   //defual deadtime
+    IDEADTIME = 1000*time.Millisecond   //defual deadtime
     IHEARTTIMEOUT = 10  //heartbeat 10 seconds
 )
 //the function read callback
@@ -145,16 +146,22 @@ func conRead(cbR cbRead,iId int,conn net.Conn,bServer bool){
     iNowBuf := 0
     iStartIndex := 0
     llNowTime := time.Now().Unix() + IHEARTTIMEOUT
-    L.W("start read loop....",L.Level_Trace)
+   // L.W("start read loop....",L.Level_Trace)
     for !GetStop(){
-        conn.SetReadDeadline(time.Now().Add(time.Duration(5000*time.Millisecond))
+        errread := conn.SetReadDeadline(time.Now().Add(IDEADTIME))
+        if nil != errread{
+            L.W(fmt.Sprintf("SetReadDeadline err:%s",errread),L.Level_Error)
+        }
+        
         //check heart beat or send heart beat
         if bServer{
-            if llNowTime < time.Now().Unix() + IHEARTTIMEOUT + 2{
+            if llNowTime < (time.Now().Unix()-2){//delay 2 seconds
+               // L.W(fmt.Sprintf("[%d] - [%d]",llNowTime,time.Now().Unix() + IHEARTTIMEOUT+2),L.Level_Trace)
                 return 
             }
         }else {
-            if llNowTime -1 <=time.Now().Unix(){
+               // L.W(fmt.Sprintf("client [%d] - [%d]",llNowTime,time.Now().Unix() + IHEARTTIMEOUT+2),L.Level_Trace)
+            if llNowTime -1 <=time.Now().Unix(){//1 seconds beforhand
                 if !doHeartBeat(conn){
                     return 
                 }else{
@@ -162,17 +169,18 @@ func conRead(cbR cbRead,iId int,conn net.Conn,bServer bool){
                 }
             }
         }
-        L.W("start read....",L.Level_Trace)
+       // L.W("start read....",L.Level_Trace)
         iReadByte = 0
         err = nil
         iReadByte,err = conn.Read(buf[iNowBuf:])
-        L.W(fmt.Sprintf("read number %d,iNowBuf[%d],iHeadSize[%d]",iReadByte,iNowBuf,iHeadSize),L.Level_Trace)
+       // L.W(fmt.Sprintf("read number %d,iNowBuf[%d],iHeadSize[%d]",iReadByte,iNowBuf,iHeadSize),L.Level_Trace)
         if err != nil{
-            L.W(fmt.Sprintf("[%d]read err,[%s] ",iId,err),L.Level_Trace)
-          /*  if Timeout(){
-                continue  //read time out 
+            //L.W(fmt.Sprintf("[%d]read err...[%s] ",iId,err),L.Level_Trace)
+            if strings.Contains(err.Error(),"timeout"){
+                continue
             }
-            */
+            L.W(fmt.Sprintf("[%d]read err,[%s] ",iId,err),L.Level_Error)
+            return 
             if err != io.EOF{
                 L.W(fmt.Sprintf("[%d]read err,[%s] ",iId,err),L.Level_Error)
                 return 
@@ -180,16 +188,18 @@ func conRead(cbR cbRead,iId int,conn net.Conn,bServer bool){
             continue
         }
         iNowBuf += iReadByte
-         for iNowBuf-iStartIndex > iHeadSize{//judge if head is complete!
+         for iNowBuf-iStartIndex >= iHeadSize{//judge if head is complete!
              copy(bufHead,buf[iStartIndex:iStartIndex+iHeadSize])
              //stHead = MSGHead(bufHead)
              stHead = *(*(**MSGHead)(unsafe.Pointer(&bufHead)))
+            // L.W(fmt.Sprintf("%d,%d,%d,%s,%d",iNowBuf,iReadByte,iStartIndex,string(bufHead),stHead.lens),L.Level_Trace)
              if stHead.bHeartBeat{
                     //do heartbeat back
-                    if !doHeartBeat(conn){
+                    if bServer && !doHeartBeat(conn){
                         return 
                     }else{
                         llNowTime = time.Now().Unix() + IHEARTTIMEOUT  //update next heart dead time
+                        iStartIndex +=iHeadSize
                     }
                 }else{
                 if iHeadSize + stHead.lens <= iNowBuf{//get head body complete
@@ -200,9 +210,11 @@ func conRead(cbR cbRead,iId int,conn net.Conn,bServer bool){
                         return
                     }
                     iStartIndex += stHead.lens
+                }else{
+                    break  //continue read 
                 }
             }
-    }
+        }
         copy(buf,buf[iStartIndex:iNowBuf])
         iNowBuf -= iStartIndex
         iStartIndex = 0
@@ -286,8 +298,8 @@ func DialS(iPort int,cbR cbRead,cbD cbDiscon)(bool,string){
 }
 
 func doHeartBeat(con net.Conn)bool{
-    head := MSGHead{lens:0,
-                    bHeartBeat:false}
+    head := MSGHead{lens:100,
+                    bHeartBeat:true}
     iHeadSize := int(unsafe.Sizeof(head))
     tempHead :=&FakeSlice{uintptr(unsafe.Pointer(&head)),iHeadSize,iHeadSize}
     bufSend := *(*[]byte)(unsafe.Pointer(tempHead))
@@ -300,6 +312,7 @@ func doHeartBeat(con net.Conn)bool{
         L.W("send data number is wrong!!",L.Level_Error)
         return false
     }
+   // L.W(fmt.Sprintf("do heart beat,%s",string(bufSend)),L.Level_Trace)
     return true
  }
 

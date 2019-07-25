@@ -30,6 +30,10 @@ func main(){
         L.W(fmt.Sprintf("%d",iId),L.Level_Trace)
     }
     L.W(err,L.Level_Trace)
-    time.Sleep(time.Second * 60)
+    for i:=1;i < 40;i++{
+        szSend := fmt.Sprintf("client send [%d]",time.Now().UnixNano())
+        S.Write(iId,[]byte(szSend),len([]byte(szSend)))
+        time.Sleep(1*time.Second)
+    }
     
 }
