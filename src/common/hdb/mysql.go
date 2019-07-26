@@ -1,10 +1,10 @@
-package db_sql
+package db
 
 import (
     L"common/hlog"
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	_ "common/mysql"
 )
 
 var (
@@ -37,8 +37,8 @@ func NewMysql(arg Mysql) {
         L.W(fmt.Sprintf("mysql:%s ping err:%s", dataSourceName, err),L.Level_Error)
 		return
 	}
-	_mysql.SetMaxIdleConns(cfg.MaxIdleConns)
-	_mysql.SetMaxOpenConns(cfg.MaxOpenConns)
+	_mysql.SetMaxIdleConns(arg.MaxIdleConns)
+	_mysql.SetMaxOpenConns(arg.MaxOpenConns)
     L.W(fmt.Sprintf("sql run:%s", dataSourceName),L.Level_Normal)
 	return
 }

@@ -94,7 +94,7 @@ func Test_redis(t *testing.T) {
 	if bm.IsExist("gfandada") {
 		t.Error("check err")
 	}
-	if err = bm.Put("gfandada", 1, timeoutDuration); err != nil {
+	if err = bm.Put("gfandada",e1, timeoutDuration); err != nil {
 		t.Error("set Error", err)
 	}
 	if v, _ := redis.Int(bm.Get("gfandada"), err); v != 1 {

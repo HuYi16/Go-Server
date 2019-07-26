@@ -4,6 +4,7 @@ import (
 	"time"
     L"common/hlog"
 	"github.com/garyburd/redigo/redis"
+    "fmt"
 )
 
 const (
@@ -57,19 +58,19 @@ func (cache *Cache) initRedis(redisCfg Redis) {
 	dialFunc := func() (c redis.Conn, err error) {
 		c, err = redis.Dial("tcp", redisCfg.RedisServer)
 		if err != nil {
-			logger.Error("redis Dial error: %v", err)
+			L.W(fmt.Sprintf("redis Dial error: %s",err),L.Level_Error)
 			return nil, err
 		}
 		if redisCfg.Auth != "" {
 			if _, err := c.Do("AUTH", redisCfg.Auth); err != nil {
-				logger.Error("redis AUTH error: %v", err)
+				L.W(fmt.Sprintf("redis AUTH error: %v", err),L.Level_Error)
 				c.Close()
 				return nil, err
 			}
 		}
 		_, selecterr := c.Do("SELECT", redisCfg.DbNum)
 		if selecterr != nil {
-			logger.Error("redis SELECT error: %v dbbum: %d", err, redisCfg.DbNum)
+			L.W(fmt.Sprintf("redis SELECT error: %v dbbum: %d", err, redisCfg.DbNum),L.Level_Error)
 			c.Close()
 			return nil, selecterr
 		}
